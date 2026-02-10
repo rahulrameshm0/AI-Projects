@@ -10,11 +10,7 @@ load_dotenv()
 
 
 def main():
-    model = ChatOpenAI(
-            model="deepseek-chat",
-            temperature=0,
-            base_url="https://api.deepseek.com/v1"
-    )
+    model = ChatOpenAI(temprature=0)
 
     tools = []
     agent_excutor = create_react_agent(model, tools)
@@ -38,4 +34,3 @@ def main():
 
 if __name__== "__main__":
     main()
-
