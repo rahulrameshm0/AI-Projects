@@ -1,0 +1,24 @@
+{
+  "name": "minigram-admin",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@clerk/nextjs": "latest",
+    "convex": "latest"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "@types/react": "~19.3.0",
+    "@types/react-dom": "latest",
+    "@types/node": "^24"
+  }
+}
