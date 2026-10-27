@@ -99,7 +99,7 @@ function Reports() {
   const open = async (id: Id<"reports">) => {
     try {
       setError("");
-      const token = await getToken({ template: "convex" }),
+      const token = await getToken(),
         base = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
       if (!base) throw new Error("The media server is not configured.");
       const response = await fetch(`${base}/evidence?id=${id}`, {

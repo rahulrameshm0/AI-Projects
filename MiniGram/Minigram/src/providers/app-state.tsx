@@ -64,7 +64,7 @@ function SessionState({ children }: { children: ReactNode }) {
     let live = true;
     const refresh = () => {
       if (!isAuthenticated) return;
-      getToken({ template: "convex" })
+      getToken()
         .then((t) => {
           if (live) setToken(t);
         })

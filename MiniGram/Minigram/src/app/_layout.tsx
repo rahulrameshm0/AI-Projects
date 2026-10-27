@@ -22,7 +22,7 @@ function Routes() {
     state = useAppState(),
     { signOut } = useClerk(),
     p = usePalette();
-  if (!isLoaded || (isSignedIn && state.loading)) return <SessionLoading />;
+  if (!isLoaded) return <SessionLoading />;
   if (isSignedIn && state.error)
     return (
       <Screen>
@@ -40,6 +40,7 @@ function Routes() {
         </View>
       </Screen>
     );
+  if (isSignedIn && state.loading) return <SessionLoading />;
   const active = !!isSignedIn && state.me?.status === "active",
     onboarding = !!isSignedIn && state.me?.status === "incomplete",
     blocked = !!isSignedIn && !!state.me && !active && !onboarding;
@@ -53,8 +54,8 @@ function Routes() {
             contentStyle: { backgroundColor: p.bg },
           }}
         >
+          <Stack.Screen name="index" />
           <Stack.Protected guard={!isSignedIn}>
-            <Stack.Screen name="index" />
             <Stack.Screen name="sign-up" />
             <Stack.Screen name="forgot-password" />
             <Stack.Screen name="sign-in-link" />
@@ -76,11 +77,13 @@ function Routes() {
             <Stack.Screen name="blocked" />
             <Stack.Screen name="report" />
             <Stack.Screen name="delete-account" />
-            <Stack.Screen name="account" />
             <Stack.Screen name="explore" />
           </Stack.Protected>
           <Stack.Protected guard={blocked}>
             <Stack.Screen name="unavailable" />
+          </Stack.Protected>
+          <Stack.Protected guard={!!isSignedIn}>
+            <Stack.Screen name="account" />
           </Stack.Protected>
           <Stack.Screen name="policies" />
           <Stack.Screen name="sso-callback" />

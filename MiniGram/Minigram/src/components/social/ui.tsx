@@ -11,7 +11,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { type ReactNode, Component } from "react";
+import { type ReactNode, Component, useState } from "react";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 export function usePalette() {
   const dark = useColorScheme() === "dark";
@@ -262,7 +262,7 @@ export function Header({
           name="back"
           label="Go back"
           onPress={() =>
-            router.canGoBack() ? router.back() : router.replace("/(tabs)")
+            router.canGoBack() ? router.back() : router.replace("/")
           }
         />
       )}
@@ -295,6 +295,7 @@ export function Button({
   small?: boolean;
 }) {
   const p = usePalette();
+  const [pressed, setPressed] = useState(false);
   return (
     <Pressable
       className="items-center justify-center"
@@ -302,7 +303,9 @@ export function Button({
       accessibilityState={{ disabled: busy || disabled, busy }}
       onPress={onPress}
       disabled={busy || disabled}
-      style={({ pressed }) => [
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={[
         {
           minHeight: small ? 36 : 52,
           paddingHorizontal: small ? 16 : 22,

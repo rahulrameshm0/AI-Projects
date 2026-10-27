@@ -73,7 +73,7 @@ export function useMediaUpload(purpose: "post" | "message" | "avatar") {
             uploadType: FileSystemUploadType.BINARY_CONTENT,
             headers: {
               "Content-Type": selection.mime,
-              Authorization: `Bearer ${await getToken({ template: "convex" })}`,
+              Authorization: `Bearer ${await getToken()}`,
             },
           },
           (e) =>

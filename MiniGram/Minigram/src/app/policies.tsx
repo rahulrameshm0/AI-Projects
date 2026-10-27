@@ -1,6 +1,11 @@
 import { ScrollView } from "react-native";
-import { Screen, Header, T } from "@/components/social/ui";
+import { router } from "expo-router";
+import { Screen, Header, T, Button } from "@/components/social/ui";
+import { useAppState } from "@/providers/app-state";
+import { profileDestination } from "@/lib/auth/destination";
 export default function Page() {
+  const { me } = useAppState();
+  const destination = profileDestination(me?.status) || "/";
   return (
     <Screen>
       <Header title="Community and privacy" back />
@@ -78,6 +83,13 @@ export default function Page() {
         <T muted size={12}>
           Beta policy • Version 1 • 26 October 2026
         </T>
+        <Button
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.replace(destination)
+          }
+        >
+          {me?.status === "incomplete" ? "Continue account setup" : "Return to MiniGram"}
+        </Button>
       </ScrollView>
     </Screen>
   );

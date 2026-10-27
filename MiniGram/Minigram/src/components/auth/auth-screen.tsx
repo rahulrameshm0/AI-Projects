@@ -28,6 +28,7 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
+  const [pressedButton, setPressedButton] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const flow = useAuthFlow(signup);
   const { busy, error } = flow;
@@ -141,9 +142,11 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
                   onPress={() => {
                     void flow.social(provider);
                   }}
-                  style={({ pressed }) => [
+                  onPressIn={() => setPressedButton(provider)}
+                  onPressOut={() => setPressedButton(null)}
+                  style={[
                     styles.provider,
-                    pressed && styles.pressed,
+                    pressedButton === provider && styles.pressed,
                   ]}
                 >
                   <View
@@ -270,10 +273,12 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
               disabled={busy}
               accessibilityState={{ disabled: busy, busy }}
               onPress={submit}
-              style={({ pressed }) => [
+              onPressIn={() => setPressedButton("submit")}
+              onPressOut={() => setPressedButton(null)}
+              style={[
                 styles.submit,
                 signup && styles.signupSubmit,
-                pressed && styles.pressed,
+                (pressedButton === "submit" || busy) && styles.pressed,
               ]}
             >
               {busy ? (

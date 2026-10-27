@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { profileDestination } from "../src/lib/auth/destination";
 const modules = import.meta.glob(["./**/*.ts", "!./**/*.test.ts"]);
 const page = { numItems: 30, cursor: null };
 function setup() {
@@ -79,6 +80,29 @@ beforeEach(() => {
   vi.useRealTimers();
 });
 describe("privacy and admission", () => {
+  it("routes a signed-in new member through setup and unlocks Home after completion", async () => {
+    const t = setup();
+    const client = t.withIdentity({ subject: "google-new-member" });
+    await client.mutation(api.users.ensure, {});
+    const pending = await client.query(api.users.me, {});
+    expect(profileDestination(pending?.status)).toBe("/onboarding");
+    await t.mutation(internal.admin.bootstrap, { code: "ROUTING-TEST" });
+    await client.mutation(api.users.complete, {
+      code: "ROUTING-TEST",
+      username: "new.member",
+      displayName: "New Member",
+      privacy: "private",
+      adult: true,
+      policies: true,
+    });
+    const admitted = await client.query(api.users.me, {});
+    expect(profileDestination(admitted?.status)).toBe("/(tabs)");
+    const feed = await client.query(api.posts.feed, {
+      mode: "home",
+      paginationOpts: page,
+    });
+    expect(feed.page).toEqual([]);
+  });
   it("rejects signed-out and incomplete consumers", async () => {
     const t = setup();
     await expect(
