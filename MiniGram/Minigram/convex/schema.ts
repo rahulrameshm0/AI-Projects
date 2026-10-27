@@ -92,6 +92,7 @@ export default defineSchema({
     clientId: v.string(),
     likes: v.number(),
     comments: v.number(),
+    editedAt: v.optional(v.number()),
   })
     .index("by_author", ["author"])
     .index("by_client", ["author", "clientId"])
@@ -99,13 +100,19 @@ export default defineSchema({
   likes: defineTable({ user: v.id("users"), post: v.id("posts") })
     .index("by_pair", ["user", "post"])
     .index("by_post", ["post"]),
+  saves: defineTable({ user: v.id("users"), post: v.id("posts") })
+    .index("by_user", ["user"])
+    .index("by_pair", ["user", "post"])
+    .index("by_post", ["post"]),
   comments: defineTable({
     author: v.id("users"),
     post: v.id("posts"),
     text: v.string(),
     deleted: v.boolean(),
+    clientId: v.optional(v.string()),
   })
     .index("by_post", ["post"])
+    .index("by_client", ["author", "clientId"])
     .index("by_author", ["author"]),
   conversations: defineTable({
     pair: v.string(),

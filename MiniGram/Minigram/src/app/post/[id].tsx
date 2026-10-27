@@ -1,6 +1,7 @@
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { randomUUID } from "expo-crypto";
 import {
   Alert,
   FlatList,
@@ -38,21 +39,26 @@ function Detail() {
     ),
     add = useMutation(api.posts.comment),
     remove = useMutation(api.posts.removeComment),
+    requestId = useRef(randomUUID()),
+    inFlight = useRef(false),
     [text, setText] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     p = usePalette();
   const submit = async () => {
-    if (busy || !text.trim()) return;
+    if (inFlight.current || !text.trim()) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
-      await add({ id: postId, text });
+      await add({ id: postId, text, clientId: requestId.current });
       setText("");
+      requestId.current = randomUUID();
     } catch (e) {
       setError(messageOf(e));
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   };
   if (post === undefined)
@@ -80,6 +86,7 @@ function Detail() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <FlatList
+          keyboardShouldPersistTaps="handled"
           data={results}
           keyExtractor={(c) => c._id}
           ListHeaderComponent={

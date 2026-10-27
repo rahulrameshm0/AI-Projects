@@ -123,7 +123,12 @@ export const deleteAccount = internalMutation({
       const p = await ctx.db.get(l.post);
       if (p) await ctx.db.patch(p._id, { likes: Math.max(0, p.likes - 1) });
     }
-    if (likes.length === 50) {
+    const saves = await ctx.db
+      .query("saves")
+      .withIndex("by_pair", (q) => q.eq("user", id))
+      .take(50);
+    for (const save of saves) await ctx.db.delete(save._id);
+    if (likes.length === 50 || saves.length === 50) {
       await ctx.scheduler.runAfter(0, internal.cleanup.deleteAccount, { id });
       return;
     }

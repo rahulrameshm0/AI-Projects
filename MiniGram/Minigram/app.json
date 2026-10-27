@@ -2,7 +2,7 @@
   "expo": {
     "name": "MiniGram",
     "slug": "Minigram",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/minigram-icon.png",
     "scheme": "minigram",
@@ -17,7 +17,8 @@
         "backgroundColor": "#ffffff"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.rahulm.minigram"
+      "package": "com.rahulm.minigram",
+      "versionCode": 2
     },
     "web": {
       "output": "server",
@@ -49,6 +50,17 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "98a327cf-a4b7-4924-be8d-fd8fa6987e3a"
+      }
+    },
+    "owner": "rahulrameshm0"
   }
 }

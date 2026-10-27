@@ -1,7 +1,8 @@
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useMemo, useState } from "react";
-import { Pressable, View, ActivityIndicator } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { AppState, Pressable, View, ActivityIndicator } from "react-native";
 import { useMediaToken, siteUrl } from "@/providers/app-state";
 import type { Id } from "@/lib/api";
 import { Icon, T, usePalette } from "./ui";
@@ -108,6 +109,50 @@ function Video({
   const player = useVideoPlayer(source, (p) => {
     p.loop = false;
   });
+  const [error, setError] = useState(false);
+  useFocusEffect(useCallback(() => () => player.pause(), [player]));
+  useEffect(() => {
+    const status = player.addListener("statusChange", ({ status }) =>
+      setError(status === "error"),
+    );
+    const background = AppState.addEventListener("change", (state) => {
+      if (state !== "active") player.pause();
+    });
+    return () => {
+      status.remove();
+      background.remove();
+    };
+  }, [player]);
+  if (error)
+    return (
+      <View
+        style={{
+          aspectRatio: ratio,
+          backgroundColor: "#111",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 12,
+        }}
+      >
+        <T style={{ color: "#fff" }}>Video could not load.</T>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Retry video"
+          onPress={() => {
+            setError(false);
+            void player
+              .replaceAsync(source)
+              .then(() => player.play())
+              .catch(() => setError(true));
+          }}
+          style={{ padding: 16 }}
+        >
+          <T bold style={{ color: "#fff" }}>
+            Retry
+          </T>
+        </Pressable>
+      </View>
+    );
   return (
     <VideoView
       player={player}
@@ -128,7 +173,8 @@ export function Avatar({
   size?: number;
 }) {
   const p = usePalette(),
-    token = useMediaToken();
+    token = useMediaToken(),
+    [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   return (
     <View
       style={{
@@ -143,7 +189,7 @@ export function Avatar({
         borderColor: p.line,
       }}
     >
-      {user?.avatar && token && siteUrl ? (
+      {user?.avatar && failedAvatar !== user.avatar && token && siteUrl ? (
         <Image
           source={{
             uri: `${siteUrl}/media?id=${encodeURIComponent(user.avatar)}`,
@@ -152,6 +198,7 @@ export function Avatar({
           style={{ width: size, height: size }}
           contentFit="cover"
           cachePolicy="none"
+          onError={() => setFailedAvatar(user.avatar || null)}
         />
       ) : (
         <T size={size * 0.35} bold>

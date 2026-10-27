@@ -44,6 +44,7 @@ function Conversation() {
     [selection, setSelection] = useState<Selection | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    pending = useRef(false),
     clientId = useRef(randomUUID()),
     upload = useMediaUpload("message"),
     p = usePalette();
@@ -52,7 +53,8 @@ function Conversation() {
     if (lastAt !== undefined) read({ id: cid }).catch(() => {});
   }, [lastAt, cid, read]);
   const run = async (action: () => Promise<unknown>) => {
-    if (busy) return;
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
@@ -60,6 +62,7 @@ function Conversation() {
     } catch (e) {
       setError(messageOf(e));
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   };

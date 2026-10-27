@@ -53,6 +53,7 @@ export default function Page() {
         <T size={13} muted>
           ACCOUNT
         </T>
+        {row("Saved posts", () => router.push("/saved"))}
         {row("Edit profile", () => router.push("/edit-profile"))}
         {row("Blocked accounts", () => router.push("/blocked"))}
         {row("Community rules and privacy", () => router.push("/policies"))}

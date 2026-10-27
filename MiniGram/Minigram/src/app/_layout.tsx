@@ -74,6 +74,9 @@ function Routes() {
             <Stack.Screen name="activity" />
             <Stack.Screen name="edit-profile" />
             <Stack.Screen name="settings" />
+            <Stack.Screen name="saved" />
+            <Stack.Screen name="likes/[id]" />
+            <Stack.Screen name="edit-post/[id]" />
             <Stack.Screen name="blocked" />
             <Stack.Screen name="report" />
             <Stack.Screen name="delete-account" />

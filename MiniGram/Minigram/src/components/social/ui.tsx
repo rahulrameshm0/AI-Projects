@@ -39,6 +39,7 @@ export type IconName =
   | "more"
   | "settings"
   | "lock"
+  | "bookmark"
   | "grid"
   | "user"
   | "image"
@@ -133,6 +134,9 @@ export function Icon({
           <Rect x="5" y="10" width="14" height="12" rx="2" />
           <Path d="M8 10V6a4 4 0 0 1 8 0v4" />
         </>
+      )}
+      {name === "bookmark" && (
+        <Path d="M6 3h12v19l-6-4-6 4Z" fill={filled ? c : "none"} />
       )}
       {name === "grid" && (
         <>

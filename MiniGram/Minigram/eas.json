@@ -1,1 +1,31 @@
-{"cli":{"version":">=16.0.0","appVersionSource":"local"},"build":{"development":{"developmentClient":true,"distribution":"internal"},"preview":{"distribution":"internal","android":{"buildType":"apk"}},"production":{"autoIncrement":true}},"submit":{"production":{}}}
+{
+  "cli": {
+    "version": ">=16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "environment": "preview",
+      "node": "24.22.1",
+      "env": {
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_Y2FyZWZ1bC1hbW9lYmEtOTEyNC5jbGVyay5hY2NvdW50cy5kZXYk",
+        "EXPO_PUBLIC_CONVEX_URL": "https://hallowed-crab-42.convex.cloud",
+        "EXPO_PUBLIC_CONVEX_SITE_URL": "https://hallowed-crab-42.convex.site"
+      }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

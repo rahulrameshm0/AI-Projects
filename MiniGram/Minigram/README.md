@@ -59,3 +59,19 @@ npx expo-doctor
 ```
 
 `check` runs TypeScript, lint, and backend tests. Device verification must additionally cover sign-in, invitation onboarding, uploads/playback, privacy, messaging, and deletion against the intended hosted environment.
+
+## Beta 1.1 features and checks
+
+The beta includes realtime posts, retry-safe likes and comments, liker lists, private saved-post collections (Settings → Saved posts), owner caption editing, public/private follows, message requests and accepted text/photo/video conversations, activity, blocking, reporting, and account deletion. Saved content is rechecked against current privacy and block rules. Video playback pauses on screen blur/background and supports retry after errors.
+
+The EAS `preview` profile is linked to the MiniGram development services and builds version 1.1.0 (Android version code 2). For this repository's nested layout, limit the upload to this app using:
+
+```sh
+EAS_NO_VCS=1 EAS_PROJECT_ROOT="$PWD" npx eas-cli@latest build --platform android --profile preview
+```
+
+`.easignore` excludes local secrets, native build output, artifacts, and the separate admin app. The cloud APK uses EAS-managed signing; the older locally signed preview must be uninstalled once before installing the cloud-signed version. Cloud account data remains in the backend.
+
+Live verification scripts require explicit approval to create labeled development test data. They refuse Clerk production keys. Run `node scripts/verify-beta.mjs --create-test-data` only when authorized; it creates two test accounts and invitations, uses its own test posts/messages, and records private references in `.beta-test-access.local.json`. `node scripts/verify-beta-media.mjs` reuses only those marked accounts for video delivery and revocation checks. The tests leave the two labeled accounts and their test conversation for further device verification.
+
+This remains an invite-only beta. Public production launch requires production Clerk/provider setup, a production backend, release acceptance on target phones, and an administrator/moderation operating process.

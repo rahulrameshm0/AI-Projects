@@ -13,6 +13,7 @@ import {
   throttle,
   text,
   profile,
+  visibleUser,
 } from "./lib/access";
 import { internal } from "./_generated/api";
 async function decorate(ctx: QueryCtx, me: Doc<"users">, post: Doc<"posts">) {
@@ -21,6 +22,10 @@ async function decorate(ctx: QueryCtx, me: Doc<"users">, post: Doc<"posts">) {
   if (!author || !media) return null;
   const like = await ctx.db
     .query("likes")
+    .withIndex("by_pair", (q) => q.eq("user", me._id).eq("post", post._id))
+    .unique();
+  const saved = await ctx.db
+    .query("saves")
     .withIndex("by_pair", (q) => q.eq("user", me._id).eq("post", post._id))
     .unique();
   return {
@@ -34,6 +39,7 @@ async function decorate(ctx: QueryCtx, me: Doc<"users">, post: Doc<"posts">) {
       duration: media.duration,
     },
     liked: !!like,
+    saved: !!saved,
     own: post.author === me._id,
   };
 }
@@ -57,12 +63,10 @@ export const feed = query({
       !(await canViewPosts(ctx, me, await ctx.db.get(args.author)))
     )
       return { page: [], isDone: true, continueCursor: "" };
-    const result = await source
-        .order("desc")
-        .paginate({
-          ...args.paginationOpts,
-          numItems: Math.min(50, Math.max(1, args.paginationOpts.numItems)),
-        }),
+    const result = await source.order("desc").paginate({
+        ...args.paginationOpts,
+        numItems: Math.min(50, Math.max(1, args.paginationOpts.numItems)),
+      }),
       page = [];
     for (const post of result.page) {
       if (!(await postAccess(ctx, me, post))) continue;
@@ -133,8 +137,8 @@ export const publish = mutation({
   },
 });
 export const like = mutation({
-  args: { id: v.id("posts") },
-  handler: async (ctx, { id }) => {
+  args: { id: v.id("posts"), liked: v.optional(v.boolean()) },
+  handler: async (ctx, { id, liked }) => {
     const me = await viewer(ctx),
       post = await ctx.db.get(id);
     if (!post || !(await postAccess(ctx, me, post)))
@@ -143,6 +147,8 @@ export const like = mutation({
       .query("likes")
       .withIndex("by_pair", (q) => q.eq("user", me._id).eq("post", id))
       .unique();
+    const desired = liked ?? !existing;
+    if (desired === !!existing) return desired;
     if (existing) {
       await ctx.db.delete(existing._id);
       await ctx.db.patch(id, { likes: Math.max(0, post.likes - 1) });
@@ -153,6 +159,85 @@ export const like = mutation({
     await ctx.db.patch(id, { likes: post.likes + 1 });
     await notify(ctx, post.author, me._id, "like", id);
     return true;
+  },
+});
+export const save = mutation({
+  args: { id: v.id("posts"), saved: v.boolean() },
+  handler: async (ctx, { id, saved }) => {
+    const me = await viewer(ctx);
+    const existing = await ctx.db
+      .query("saves")
+      .withIndex("by_pair", (q) => q.eq("user", me._id).eq("post", id))
+      .unique();
+    if (!saved) {
+      if (existing) await ctx.db.delete(existing._id);
+      return false;
+    }
+    if (!(await postAccess(ctx, me, await ctx.db.get(id))))
+      return fail("Post not available.");
+    if (!existing) {
+      await throttle(ctx, me._id, "save", 1000);
+      await ctx.db.insert("saves", { user: me._id, post: id });
+    }
+    return true;
+  },
+});
+export const saved = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const me = await viewer(ctx);
+    const result = await ctx.db
+      .query("saves")
+      .withIndex("by_user", (q) => q.eq("user", me._id))
+      .order("desc")
+      .paginate({
+        ...args.paginationOpts,
+        numItems: Math.min(50, Math.max(1, args.paginationOpts.numItems)),
+      });
+    const page = [];
+    for (const save of result.page) {
+      const post = await ctx.db.get(save.post);
+      if (post && (await postAccess(ctx, me, post))) {
+        const decorated = await decorate(ctx, me, post);
+        if (decorated) page.push(decorated);
+      }
+    }
+    return { ...result, page };
+  },
+});
+export const likers = query({
+  args: { id: v.id("posts"), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const me = await viewer(ctx);
+    if (!(await postAccess(ctx, me, await ctx.db.get(args.id))))
+      return fail("Post not available.");
+    const result = await ctx.db
+      .query("likes")
+      .withIndex("by_post", (q) => q.eq("post", args.id))
+      .order("desc")
+      .paginate({
+        ...args.paginationOpts,
+        numItems: Math.min(50, Math.max(1, args.paginationOpts.numItems)),
+      });
+    const page = [];
+    for (const like of result.page) {
+      const user = await ctx.db.get(like.user);
+      if (user && (await visibleUser(ctx, me, user))) page.push(profile(user));
+    }
+    return { ...result, page };
+  },
+});
+export const edit = mutation({
+  args: { id: v.id("posts"), caption: v.string() },
+  handler: async (ctx, { id, caption }) => {
+    const me = await viewer(ctx),
+      post = await ctx.db.get(id);
+    if (!post || post.deleted || post.author !== me._id)
+      return fail("You cannot edit this post.");
+    await ctx.db.patch(id, {
+      caption: text(caption, 2200),
+      editedAt: Date.now(),
+    });
   },
 });
 export const remove = mutation({
@@ -206,18 +291,36 @@ export const comments = query({
   },
 });
 export const comment = mutation({
-  args: { id: v.id("posts"), text: v.string() },
+  args: {
+    id: v.id("posts"),
+    text: v.string(),
+    clientId: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const me = await viewer(ctx),
       post = await ctx.db.get(args.id);
     if (!post || !(await postAccess(ctx, me, post)))
       return fail("Post not available.");
+    if (args.clientId) {
+      text(args.clientId, 100, true);
+      const prior = await ctx.db
+        .query("comments")
+        .withIndex("by_client", (q) =>
+          q.eq("author", me._id).eq("clientId", args.clientId),
+        )
+        .unique();
+      if (prior) {
+        if (prior.post !== args.id) return fail("Invalid request identifier.");
+        return prior._id;
+      }
+    }
     await throttle(ctx, me._id, "comment", 200);
     const id = await ctx.db.insert("comments", {
       author: me._id,
       post: args.id,
       text: text(args.text, 1000, true),
       deleted: false,
+      clientId: args.clientId,
     });
     await ctx.db.patch(post._id, { comments: post.comments + 1 });
     await notify(ctx, post.author, me._id, "comment", post._id);

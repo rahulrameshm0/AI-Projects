@@ -235,6 +235,26 @@ export const bootstrap = internalMutation({
     return { created: true };
   },
 });
+/** Deployment-operator only; never exposed to authenticated mobile clients. */
+export const assignAdministrator = internalMutation({
+  args: { subject: v.string() },
+  handler: async (ctx, { subject }) => {
+    const user = await bySubject(ctx, subject);
+    if (!user || user.status !== "active" || !user.admitted)
+      return fail("Complete admission before assigning administrator access.");
+    if (!user.admin) {
+      await ctx.db.patch(user._id, { admin: true });
+      await ctx.db.insert("moderation", {
+        admin: user._id,
+        action: "operator_assign_admin",
+        target: user._id,
+        reason:
+          "Assigned by the deployment operator with account-owner approval.",
+      });
+    }
+    return { assigned: true };
+  },
+});
 export const audit = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {

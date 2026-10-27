@@ -234,7 +234,117 @@ describe("privacy and admission", () => {
     expect(a.id).not.toBe(b.id);
   });
 });
+describe("operator administration", () => {
+  it("requires admission and records a single audit entry for administrator assignment", async () => {
+    const t = setup();
+    const pending = t.withIdentity({ subject: "incomplete-admin" });
+    await pending.mutation(api.users.ensure, {});
+    await expect(
+      t.mutation(internal.admin.assignAdministrator, {
+        subject: "incomplete-admin",
+      }),
+    ).rejects.toThrow("Complete admission");
+    const owner = await user(t, "owner");
+    await expect(owner.client.query(api.admin.dashboard, {})).rejects.toThrow(
+      "Administrator",
+    );
+    await t.mutation(internal.admin.assignAdministrator, { subject: "owner" });
+    await t.mutation(internal.admin.assignAdministrator, { subject: "owner" });
+    expect((await owner.client.query(api.users.me, {}))?.admin).toBe(true);
+    expect(await owner.client.query(api.admin.dashboard, {})).toBeTruthy();
+    expect(
+      await t.run((ctx) => ctx.db.query("moderation").collect()),
+    ).toHaveLength(1);
+  });
+});
 describe("posts and messaging", () => {
+  it("retries likes safely and updates the liker list without duplicate activity", async () => {
+    const t = setup(),
+      a = await user(t, "alice"),
+      b = await user(t, "bruno"),
+      id = await post(t, a);
+    await Promise.all([
+      b.client.mutation(api.posts.like, { id, liked: true }),
+      b.client.mutation(api.posts.like, { id, liked: true }),
+    ]);
+    expect((await b.client.query(api.posts.get, { id }))?.likes).toBe(1);
+    expect(
+      (
+        await a.client.query(api.posts.likers, { id, paginationOpts: page })
+      ).page.map((u) => u._id),
+    ).toEqual([b.id]);
+    expect(
+      await t.run((ctx) => ctx.db.query("activity").collect()),
+    ).toHaveLength(1);
+    await b.client.mutation(api.posts.like, { id, liked: false });
+    await b.client.mutation(api.posts.like, { id, liked: false });
+    expect((await b.client.query(api.posts.get, { id }))?.likes).toBe(0);
+  });
+  it("keeps saved collections private and revokes visibility after privacy and block changes", async () => {
+    const t = setup(),
+      a = await user(t, "alice"),
+      b = await user(t, "bruno"),
+      id = await post(t, a);
+    await b.client.mutation(api.posts.save, { id, saved: true });
+    await b.client.mutation(api.posts.save, { id, saved: true });
+    expect(
+      (await b.client.query(api.posts.saved, { paginationOpts: page })).page,
+    ).toHaveLength(1);
+    expect(
+      (await a.client.query(api.posts.saved, { paginationOpts: page })).page,
+    ).toHaveLength(0);
+    await t.run((ctx) => ctx.db.patch(a.id, { privacy: "private" }));
+    expect(
+      (await b.client.query(api.posts.saved, { paginationOpts: page })).page,
+    ).toHaveLength(0);
+    await expect(
+      b.client.query(api.posts.likers, { id, paginationOpts: page }),
+    ).rejects.toThrow("not available");
+    await expect(
+      b.client.mutation(api.posts.save, { id, saved: true }),
+    ).rejects.toThrow("not available");
+    await b.client.mutation(api.posts.save, { id, saved: false });
+    expect(await t.run((ctx) => ctx.db.query("saves").collect())).toHaveLength(
+      0,
+    );
+    await t.run((ctx) => ctx.db.patch(a.id, { privacy: "public" }));
+    await b.client.mutation(api.posts.save, { id, saved: true });
+    await a.client.mutation(api.social.block, { id: b.id });
+    expect(
+      (await b.client.query(api.posts.saved, { paginationOpts: page })).page,
+    ).toHaveLength(0);
+  });
+  it("allows only the owner to edit a live post caption", async () => {
+    const t = setup(),
+      a = await user(t, "alice"),
+      b = await user(t, "bruno"),
+      id = await post(t, a);
+    await expect(
+      b.client.mutation(api.posts.edit, { id, caption: "not mine" }),
+    ).rejects.toThrow("cannot edit");
+    await a.client.mutation(api.posts.edit, { id, caption: "Updated moment" });
+    const updated = await b.client.query(api.posts.get, { id });
+    expect(updated?.caption).toBe("Updated moment");
+    expect(updated?.editedAt).toBeTypeOf("number");
+    await a.client.mutation(api.posts.remove, { id });
+    await expect(
+      a.client.mutation(api.posts.edit, { id, caption: "restore" }),
+    ).rejects.toThrow("cannot edit");
+  });
+  it("deduplicates comment retries and keeps counts correct when removed twice", async () => {
+    const t = setup(),
+      a = await user(t, "alice"),
+      b = await user(t, "bruno"),
+      id = await post(t, a);
+    const args = { id, text: "A real moment", clientId: "comment-retry" };
+    const one = await b.client.mutation(api.posts.comment, args);
+    expect(await b.client.mutation(api.posts.comment, args)).toBe(one);
+    expect((await a.client.query(api.posts.get, { id }))?.comments).toBe(1);
+    await a.client.mutation(api.posts.removeComment, { id: one });
+    await a.client.mutation(api.posts.removeComment, { id: one });
+    expect((await a.client.query(api.posts.get, { id }))?.comments).toBe(0);
+  });
+
   it("publishes idempotently and stores one like per pair", async () => {
     const t = setup(),
       a = await user(t, "alice"),
@@ -395,12 +505,16 @@ describe("moderation, capacity, and deletion", () => {
       a = await user(t, "alice"),
       b = await user(t, "bruno"),
       id = await post(t, a);
+    await a.client.mutation(api.posts.save, { id, saved: true });
     await a.client.mutation(api.users.deletion, { confirmation: "DELETE" });
     expect(await b.client.query(api.posts.get, { id })).toBeNull();
     await expect(
       a.client.query(api.posts.feed, { mode: "home", paginationOpts: page }),
     ).rejects.toThrow("deleted");
     await t.mutation(internal.cleanup.deleteAccount, { id: a.id });
+    expect(await t.run((ctx) => ctx.db.query("saves").collect())).toHaveLength(
+      0,
+    );
     const tombstone = await t.run((ctx) => ctx.db.get(a.id));
     expect(tombstone?.username).toBe("");
     expect((await t.run((ctx) => ctx.db.get(id)))?.caption).toBe("");

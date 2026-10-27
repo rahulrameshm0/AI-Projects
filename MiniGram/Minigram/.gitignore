@@ -50,3 +50,7 @@ example
 artifacts/
 admin/.next/
 admin/out/
+
+# Android signing credentials stay local or in EAS
+credentials.json
+keystores/

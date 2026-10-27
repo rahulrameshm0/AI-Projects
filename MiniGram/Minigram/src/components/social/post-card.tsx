@@ -1,7 +1,7 @@
 import { useMutation } from "convex/react";
 import { router } from "expo-router";
 import { Alert, Pressable, View } from "react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FunctionReturnType } from "convex/server";
 import { api, messageOf } from "@/lib/api";
 import { Avatar, Media } from "./media";
@@ -17,18 +17,44 @@ export function PostCard({
   const p = usePalette(),
     like = useMutation(api.posts.like),
     remove = useMutation(api.posts.remove),
+    save = useMutation(api.posts.save),
+    inFlight = useRef(false),
+    [saving, setSaving] = useState(false),
+    [optimisticLike, setOptimisticLike] = useState<boolean | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const toggleLike = async () => {
-    if (busy) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const desired = !post.liked;
+    setOptimisticLike(desired);
     setBusy(true);
     setError("");
     try {
-      await like({ id: post._id });
+      await like({ id: post._id, liked: desired });
     } catch (e) {
       setError(messageOf(e));
     } finally {
+      inFlight.current = false;
+      setOptimisticLike(null);
       setBusy(false);
+    }
+  };
+  const liked = optimisticLike ?? post.liked;
+  const likes = Math.max(
+    0,
+    post.likes + (liked === post.liked ? 0 : liked ? 1 : -1),
+  );
+  const toggleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await save({ id: post._id, saved: !post.saved });
+    } catch (e) {
+      setError(messageOf(e));
+    } finally {
+      setSaving(false);
     }
   };
   const menu = () =>
@@ -43,6 +69,14 @@ export function PostCard({
       },
       ...(post.own
         ? [
+            {
+              text: "Edit caption",
+              onPress: () =>
+                router.push({
+                  pathname: "/edit-post/[id]",
+                  params: { id: post._id },
+                }),
+            },
             {
               text: "Delete post",
               style: "destructive" as const,
@@ -144,7 +178,8 @@ export function PostCard({
           <Pressable
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel={post.liked ? "Unlike post" : "Like post"}
+            accessibilityLabel={liked ? "Unlike post" : "Like post"}
+            accessibilityState={{ disabled: busy, selected: liked }}
             onPress={() => void toggleLike()}
             style={{
               flexDirection: "row",
@@ -155,11 +190,11 @@ export function PostCard({
           >
             <Icon
               name="heart"
-              color={post.liked ? p.accent : p.text}
-              filled={post.liked}
+              color={liked ? p.accent : p.text}
+              filled={liked}
             />
             <T bold size={14}>
-              {post.likes}
+              {likes}
             </T>
           </Pressable>
           <Pressable
@@ -178,7 +213,43 @@ export function PostCard({
             <Icon name="comment" />
             <T size={14}>{post.comments}</T>
           </Pressable>
+          <View style={{ flex: 1 }} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={post.saved ? "Unsave post" : "Save post"}
+            accessibilityState={{ selected: post.saved, disabled: saving }}
+            disabled={saving}
+            onPress={() => void toggleSave()}
+            style={{
+              minWidth: 44,
+              minHeight: 44,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="bookmark" filled={post.saved} />
+          </Pressable>
         </View>
+        {likes > 0 && (
+          <Pressable
+            onPress={() =>
+              router.push({ pathname: "/likes/[id]", params: { id: post._id } })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="See who liked this post"
+          >
+            <T size={13} bold>
+              {likes === 1
+                ? "1 person likes this"
+                : `${likes} people like this`}
+            </T>
+          </Pressable>
+        )}
+        {!!post.editedAt && (
+          <T muted size={11}>
+            Edited
+          </T>
+        )}
         {!!post.caption && (
           <T size={14}>
             <T bold size={14}>
